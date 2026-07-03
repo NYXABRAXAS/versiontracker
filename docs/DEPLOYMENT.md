@@ -3,14 +3,22 @@
 ## Option A - Render (recommended, uses `render.yaml`)
 
 1. Push this repo to GitHub/GitLab.
-2. In the Render dashboard: **New +** -> **Blueprint**, point it at the repo. Render reads
+2. **Get a Postgres database first.** `render.yaml` does *not* provision a Render-managed
+   database by default, because Render only allows one free-tier database per account - if that
+   slot is already used by another project on your account, the Blueprint sync fails outright. Get
+   a free Postgres from [Neon](https://neon.tech), [Supabase](https://supabase.com), or similar,
+   and copy its connection string (looks like `postgresql://user:pass@host/dbname?sslmode=require`).
+   If you'd rather use Render's own managed Postgres (and know the free slot is available), uncomment
+   the `databases:` block at the bottom of `render.yaml` and switch `DATABASE_URL` to use
+   `fromDatabase` instead of `sync: false` - see the comments in that file.
+3. In the Render dashboard: **New +** -> **Blueprint**, point it at the repo. Render reads
    `render.yaml` at the repo root and creates:
-   - `los-version-portal-db` - managed PostgreSQL 17
    - `los-version-portal-api` - the NestJS API (Docker runtime, `apps/api/Dockerfile`)
    - `los-version-portal-web` - the Next.js frontend (Docker runtime, `apps/web/Dockerfile`)
-3. Render will prompt for the env vars marked `sync: false` in `render.yaml`
-   (`SEED_SUPER_ADMIN_PASSWORD`, optionally SMTP credentials). Set them and deploy.
-4. **First-deploy URL wiring** (required - Next.js bakes `NEXT_PUBLIC_API_URL` in at build time,
+4. Render will prompt for the env vars marked `sync: false` in `render.yaml` - fill in
+   `DATABASE_URL` with the connection string from step 2, `SEED_SUPER_ADMIN_PASSWORD`, and
+   optionally SMTP credentials (leave SMTP blank if you don't have it yet). Set them and deploy.
+5. **First-deploy URL wiring** (required - Next.js bakes `NEXT_PUBLIC_API_URL` in at build time,
    so this can't be known before the services exist):
    - After the first deploy, copy each service's `*.onrender.com` URL from the Render dashboard.
    - On `los-version-portal-api`: set `API_URL` to its own URL, and `WEB_URL` + `CORS_ORIGINS` to
@@ -18,7 +26,7 @@
    - On `los-version-portal-web`: set `NEXT_PUBLIC_API_URL` to the API service's URL.
    - Trigger a manual redeploy of both services so the values take effect (the web service needs
      a full rebuild since `NEXT_PUBLIC_*` vars are compiled into the client bundle).
-5. On boot, the API container automatically runs `prisma migrate deploy` and the seed script
+6. On boot, the API container automatically runs `prisma migrate deploy` and the seed script
    (idempotent - safe to run on every deploy), then starts the server. Watch the API service logs
    for the Super Admin login line on first boot.
 
