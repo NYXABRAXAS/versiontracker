@@ -4,7 +4,9 @@
 
 # ---------- Stage 1: build ----------
 FROM node:20-alpine AS build
-RUN apk add --no-cache openssl libc6-compat
+# python3/make/g++ are required to compile bcrypt's native addon from source -
+# Alpine's musl libc means prebuilt bcrypt binaries usually aren't available.
+RUN apk add --no-cache openssl libc6-compat python3 make g++
 WORKDIR /repo
 
 COPY package.json package-lock.json ./
@@ -18,7 +20,7 @@ RUN npm run build --workspace=apps/api
 
 # ---------- Stage 2: production dependencies only ----------
 FROM node:20-alpine AS prod-deps
-RUN apk add --no-cache openssl libc6-compat
+RUN apk add --no-cache openssl libc6-compat python3 make g++
 WORKDIR /repo
 
 COPY package.json package-lock.json ./
