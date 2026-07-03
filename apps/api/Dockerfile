@@ -24,6 +24,7 @@ WORKDIR /repo
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/package.json
 RUN npm ci --omit=dev --workspace=apps/api --include-workspace-root
+COPY apps/api/prisma apps/api/prisma
 RUN npm run prisma:generate --workspace=apps/api
 
 # ---------- Stage 3: runtime ----------
@@ -37,6 +38,11 @@ COPY --from=prod-deps /repo/apps/api/node_modules ./apps/api/node_modules
 COPY --from=build /repo/apps/api/dist ./apps/api/dist
 COPY --from=build /repo/apps/api/prisma ./apps/api/prisma
 COPY apps/api/package.json apps/api/package.json
+COPY apps/api/tsconfig.json apps/api/tsconfig.json
+# prisma/seed.ts imports from ../src at runtime via ts-node (--transpile-only,
+# so no type-checking needed) - the compiled dist/ output isn't enough on its
+# own for the seed script's relative imports.
+COPY apps/api/src apps/api/src
 
 RUN mkdir -p apps/api/uploads apps/api/backups && \
     addgroup -S nodejs && adduser -S nestjs -G nodejs && \

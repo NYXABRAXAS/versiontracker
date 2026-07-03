@@ -506,6 +506,18 @@ async function seedVersionsAndActivity(
     versions.push({ ...created, env });
   }
 
+  // Demo change logs / bug fixes / deployment history / approval requests are
+  // only generated once. Versions themselves are upserted (safe to re-run),
+  // but their child records use create() with no natural unique key to
+  // upsert against - re-running this block on every container boot (the
+  // seed command runs on every deploy) would either duplicate rows forever
+  // or, for bugFix's unique bugCode, crash with a constraint violation.
+  const alreadySeededActivity = (await prisma.changeLog.count()) > 0 || (await prisma.bugFix.count()) > 0;
+  if (alreadySeededActivity) {
+    console.log('Demo change logs/bug fixes/deployments already seeded, skipping.');
+    return versions;
+  }
+
   // Change logs
   let clIndex = 0;
   for (const version of versions) {
@@ -619,14 +631,17 @@ async function seedSettingsAndAnnouncements(superAdminId: string) {
     },
   });
 
-  await prisma.announcement.create({
-    data: {
-      title: 'Welcome to the LOS Version Management Portal',
-      message: 'Track every release across Development, UAT and Production from one place. Reach out to the Admin team for access requests.',
-      priority: 'INFO',
-      createdById: superAdminId,
-    },
-  });
+  const hasAnnouncements = (await prisma.announcement.count()) > 0;
+  if (!hasAnnouncements) {
+    await prisma.announcement.create({
+      data: {
+        title: 'Welcome to the LOS Version Management Portal',
+        message: 'Track every release across Development, UAT and Production from one place. Reach out to the Admin team for access requests.',
+        priority: 'INFO',
+        createdById: superAdminId,
+      },
+    });
+  }
 }
 
 async function main() {
