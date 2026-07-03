@@ -73,7 +73,7 @@ export function VersionForm({ initial }: { initial?: Version }) {
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: initial
-      ? {
+      ? ({
           ...initial,
           releaseDate: toDateInput(initial.releaseDate),
           deploymentDate: toDateInput(initial.deploymentDate),
@@ -86,7 +86,7 @@ export function VersionForm({ initial }: { initial?: Version }) {
           developerId: initial.developerId ?? undefined,
           testerId: initial.testerId ?? undefined,
           approvedById: initial.approvedById ?? undefined,
-        }
+        } as unknown as FormValues)
       : { rollbackAvailable: false, breakingChanges: false, backwardCompatible: true },
   });
 

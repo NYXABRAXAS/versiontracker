@@ -34,7 +34,7 @@ export function AttachmentsPanel({ entityType, entityId }: { entityType: string;
       await attachmentsApi.upload(entityType, entityId, file);
       toast.success("File uploaded.");
       load();
-    } catch (err) {
+    } catch {
       toast.error("Upload failed. Check file type and size.");
     } finally {
       setUploading(false);

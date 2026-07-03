@@ -29,7 +29,7 @@ type FormValues = z.infer<typeof schema>;
 
 export default function ChangePasswordPage() {
   const router = useRouter();
-  const { user, loading, refresh, logout } = useAuth();
+  const { user, loading, logout } = useAuth();
   const [submitting, setSubmitting] = React.useState(false);
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),

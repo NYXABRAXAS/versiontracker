@@ -43,8 +43,8 @@ export const mastersApi = {
 export const usersApi = {
   list: (params: Record<string, string | number | undefined> = {}) => api.get<Paginated<User>>(`/users${qs(params)}`),
   get: (id: string) => api.get<User>(`/users/${id}`),
-  create: (data: Record<string, unknown>) => api.post<User>("/users", data),
-  update: (id: string, data: Record<string, unknown>) => api.patch<User>(`/users/${id}`, data),
+  create: (data: object) => api.post<User>("/users", data),
+  update: (id: string, data: object) => api.patch<User>(`/users/${id}`, data),
   enable: (id: string) => api.patch<User>(`/users/${id}/enable`),
   disable: (id: string) => api.patch<User>(`/users/${id}/disable`),
   remove: (id: string) => api.delete(`/users/${id}`),
@@ -64,8 +64,8 @@ export const rolesApi = {
 export const versionsApi = {
   list: (params: Record<string, string | number | undefined> = {}) => api.get<Paginated<Version>>(`/versions${qs(params)}`),
   get: (id: string) => api.get<Version>(`/versions/${id}`),
-  create: (data: Record<string, unknown>) => api.post<Version>("/versions", data),
-  update: (id: string, data: Record<string, unknown>) => api.patch<Version>(`/versions/${id}`, data),
+  create: (data: object) => api.post<Version>("/versions", data),
+  update: (id: string, data: object) => api.patch<Version>(`/versions/${id}`, data),
   remove: (id: string) => api.delete(`/versions/${id}`),
   rollback: (id: string, rollbackVersionId: string) => api.patch(`/versions/${id}/rollback`, { rollbackVersionId }),
   exportUrl: (params: Record<string, string | number | undefined>) => `/versions/export${qs(params)}`,
@@ -74,23 +74,23 @@ export const versionsApi = {
 export const changeLogsApi = {
   list: (params: Record<string, string | number | undefined> = {}) => api.get<Paginated<ChangeLog>>(`/change-logs${qs(params)}`),
   get: (id: string) => api.get<ChangeLog>(`/change-logs/${id}`),
-  create: (data: Record<string, unknown>) => api.post<ChangeLog>("/change-logs", data),
-  update: (id: string, data: Record<string, unknown>) => api.patch<ChangeLog>(`/change-logs/${id}`, data),
+  create: (data: object) => api.post<ChangeLog>("/change-logs", data),
+  update: (id: string, data: object) => api.patch<ChangeLog>(`/change-logs/${id}`, data),
   remove: (id: string) => api.delete(`/change-logs/${id}`),
 };
 
 export const bugFixesApi = {
   list: (params: Record<string, string | number | undefined> = {}) => api.get<Paginated<BugFix>>(`/bug-fixes${qs(params)}`),
   get: (id: string) => api.get<BugFix>(`/bug-fixes/${id}`),
-  create: (data: Record<string, unknown>) => api.post<BugFix>("/bug-fixes", data),
-  update: (id: string, data: Record<string, unknown>) => api.patch<BugFix>(`/bug-fixes/${id}`, data),
+  create: (data: object) => api.post<BugFix>("/bug-fixes", data),
+  update: (id: string, data: object) => api.patch<BugFix>(`/bug-fixes/${id}`, data),
   remove: (id: string) => api.delete(`/bug-fixes/${id}`),
 };
 
 export const deploymentsApi = {
   list: (params: Record<string, string | number | undefined> = {}) => api.get<Paginated<DeploymentRecord>>(`/deployments${qs(params)}`),
   pipeline: (versionId: string) => api.get<DeploymentRecord[]>(`/deployments/pipeline/${versionId}`),
-  create: (data: Record<string, unknown>) => api.post<DeploymentRecord>("/deployments", data),
+  create: (data: object) => api.post<DeploymentRecord>("/deployments", data),
   remove: (id: string) => api.delete(`/deployments/${id}`),
 };
 
@@ -124,7 +124,7 @@ export const dashboardApi = {
 };
 
 export const reportsApi = {
-  build: (type: string, params: Record<string, string | undefined> = {}) => api.get<{ title: string; columns: { key: string; label: string }[]; rows: Record<string, unknown>[] }>(`/reports/${type}${qs(params)}`),
+  build: (type: string, params: Record<string, string | undefined> = {}) => api.get<{ title: string; columns: { key: string; label: string }[]; rows: object[] }>(`/reports/${type}${qs(params)}`),
   exportUrl: (type: string, params: Record<string, string | undefined>) => `/reports/${type}/export${qs(params)}`,
 };
 
@@ -180,8 +180,8 @@ export const bookmarksApi = {
 export const calendarApi = {
   get: (dateFrom: string, dateTo: string) => api.get(`/calendar${qs({ dateFrom, dateTo })}`),
   freezeWindows: () => api.get("/calendar/freeze-windows"),
-  createFreezeWindow: (data: Record<string, unknown>) => api.post("/calendar/freeze-windows", data),
-  updateFreezeWindow: (id: string, data: Record<string, unknown>) => api.patch(`/calendar/freeze-windows/${id}`, data),
+  createFreezeWindow: (data: object) => api.post("/calendar/freeze-windows", data),
+  updateFreezeWindow: (id: string, data: object) => api.patch(`/calendar/freeze-windows/${id}`, data),
   removeFreezeWindow: (id: string) => api.delete(`/calendar/freeze-windows/${id}`),
 };
 

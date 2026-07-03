@@ -92,6 +92,13 @@ export function apiUrl(path: string): string {
   return `${API_BASE}${path}`;
 }
 
+const SERVER_ORIGIN = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
+/** Publicly served static assets (company logo, etc) live at the server root, not under /api. */
+export function uploadUrl(path: string): string {
+  return `${SERVER_ORIGIN}${path}`;
+}
+
 export function qs(params: Record<string, string | number | boolean | undefined | null>): string {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {

@@ -54,6 +54,10 @@ export default function VersionDetailPage() {
 
   React.useEffect(() => load(), [load]);
 
+  React.useEffect(() => {
+    bookmarksApi.list().then((list) => setBookmarked(list.some((v) => v.id === params.id)));
+  }, [params.id]);
+
   const onToggleBookmark = async () => {
     const res = await bookmarksApi.toggle(params.id);
     setBookmarked(res.bookmarked);
