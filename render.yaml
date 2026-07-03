@@ -1,7 +1,16 @@
 # Render Blueprint for the LOS Version Management Portal.
 # Deploy: connect this repo in the Render dashboard -> "New +" -> "Blueprint".
 # Creates: a managed PostgreSQL database, the NestJS API service, and the
-# Next.js web service.
+# Next.js web service - all on Render's FREE tier (no payment info required).
+#
+# Free tier trade-offs to know about:
+# - Both web services spin down after ~15 min of inactivity; the next request
+#   wakes them up but takes 30-60s (cold start).
+# - The free PostgreSQL database is deleted after 30 days. Upgrade its plan
+#   (or take a manual backup and restore into a fresh one) before that.
+# - No persistent disk on free web services - see the note near `disk:` below.
+# Bump `plan: free` to `plan: starter` on any of these once you're ready for
+# production-grade always-on hosting.
 #
 # IMPORTANT - two env vars can't be known until after the first deploy,
 # because Render assigns each service's public *.onrender.com URL on
@@ -14,7 +23,7 @@
 databases:
   - name: los-version-portal-db
     databaseName: los_version_portal
-    plan: starter
+    plan: free
     postgresMajorVersion: "17"
 
 services:
@@ -23,7 +32,7 @@ services:
     runtime: docker
     dockerfilePath: apps/api/Dockerfile
     dockerContext: .
-    plan: starter
+    plan: free
     healthCheckPath: /api/health
     autoDeploy: true
     envVars:
@@ -85,7 +94,7 @@ services:
     runtime: docker
     dockerfilePath: apps/web/Dockerfile
     dockerContext: .
-    plan: starter
+    plan: free
     healthCheckPath: /login
     autoDeploy: true
     envVars:
