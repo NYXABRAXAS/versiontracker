@@ -1,0 +1,722 @@
+// LOS Version Management Portal - Database Schema
+// PostgreSQL via Prisma. Every table carries createdAt/updatedAt/deletedAt
+// (soft delete only - nothing is ever hard-deleted) plus createdById/updatedById
+// audit columns. Domain-relevant "who did what" fields (developer, tester,
+// approver, reviewer, deployedBy, uploadedBy, requestedBy...) are real Prisma
+// relations to User so list views can eager-load names in one query.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ApprovalEntityType {
+  VERSION
+  BUG_FIX
+  DEPLOYMENT
+}
+
+enum DeploymentResult {
+  SUCCESS
+  FAILED
+  PARTIAL
+  ROLLED_BACK
+}
+
+enum NotificationType {
+  RELEASE_APPROVED
+  RELEASE_DEPLOYED
+  ROLLBACK
+  VERSION_CREATED
+  PASSWORD_RESET
+  USER_CREATED
+  DEPLOYMENT_FAILED
+  APPROVAL_REQUESTED
+  ANNOUNCEMENT
+  GENERAL
+}
+
+enum AuditAction {
+  LOGIN
+  LOGOUT
+  LOGIN_FAILED
+  CREATE
+  UPDATE
+  DELETE
+  EXPORT
+  PASSWORD_CHANGE
+  PASSWORD_RESET
+  ROLE_CHANGE
+  DEPLOYMENT
+  APPROVE
+  REJECT
+  RESTORE
+}
+
+enum AttachmentEntityType {
+  VERSION
+  CHANGE_LOG
+  BUG_FIX
+  ANNOUNCEMENT
+}
+
+enum AttachmentCategory {
+  IMAGE
+  PDF
+  WORD
+  EXCEL
+  ZIP
+  LOG
+  SQL
+  APK
+  IPA
+  OTHER
+}
+
+// ============================================================================
+// IDENTITY & ACCESS
+// ============================================================================
+
+model User {
+  id                     String      @id @default(uuid())
+  employeeCode           String?     @unique
+  firstName              String
+  lastName               String
+  email                  String      @unique
+  phone                  String?
+  passwordHash           String
+  avatarUrl              String?
+  roleId                 String
+  role                   Role        @relation(fields: [roleId], references: [id])
+  departmentId           String?
+  department             MasterItem? @relation("UserDepartment", fields: [departmentId], references: [id])
+  isActive               Boolean     @default(true)
+  mustChangePassword     Boolean     @default(false)
+  lastLoginAt            DateTime?
+  lastPasswordChangeAt   DateTime?
+  failedLoginAttempts    Int         @default(0)
+  lockedUntil            DateTime?
+  passwordResetTokenHash String?
+  passwordResetExpiresAt DateTime?
+
+  createdById String?
+  updatedById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  productAccess     UserProductAccess[]
+  environmentAccess UserEnvironmentAccess[]
+  moduleAccess      UserModuleAccess[]
+  refreshTokens     RefreshToken[]
+  loginHistory      LoginHistory[]
+  auditLogs         AuditLog[]              @relation("AuditActor")
+  notifications     Notification[]
+  bookmarks         Bookmark[]
+
+  developedVersions Version[] @relation("VersionDeveloper")
+  testedVersions    Version[] @relation("VersionTester")
+  approvedVersions  Version[] @relation("VersionApprover")
+
+  changeLogsAsDeveloper ChangeLog[] @relation("ChangeLogDeveloper")
+  changeLogsAsTester    ChangeLog[] @relation("ChangeLogTester")
+  changeLogsAsReviewer  ChangeLog[] @relation("ChangeLogReviewer")
+
+  bugFixesFixed  BugFix[] @relation("BugFixFixedBy")
+  bugFixesTested BugFix[] @relation("BugFixTestedBy")
+
+  deployments DeploymentHistory[] @relation("DeploymentDeployedBy")
+
+  approvalRequestsRequested ApprovalRequest[] @relation("ApprovalRequestedBy")
+  approvalRequestsDecided   ApprovalRequest[] @relation("ApprovalDecidedBy")
+
+  attachmentsUploaded Attachment[] @relation("AttachmentUploadedBy")
+
+  @@index([roleId])
+  @@index([departmentId])
+  @@map("users")
+}
+
+model Role {
+  id          String  @id @default(uuid())
+  code        String  @unique
+  name        String
+  description String?
+  isSystem    Boolean @default(false)
+  sortOrder   Int     @default(0)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  users           User[]
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String  @id @default(uuid())
+  module      String
+  action      String // view | create | edit | delete | approve | export
+  description String?
+
+  rolePermissions RolePermission[]
+
+  @@unique([module, action])
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String     @id @default(uuid())
+  roleId       String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserProductAccess {
+  id        String     @id @default(uuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   MasterItem @relation("UserProductAccessItem", fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime   @default(now())
+
+  @@unique([userId, productId])
+  @@map("user_product_access")
+}
+
+model UserEnvironmentAccess {
+  id            String     @id @default(uuid())
+  userId        String
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  environmentId String
+  environment   MasterItem @relation("UserEnvironmentAccessItem", fields: [environmentId], references: [id], onDelete: Cascade)
+  createdAt     DateTime   @default(now())
+
+  @@unique([userId, environmentId])
+  @@map("user_environment_access")
+}
+
+model UserModuleAccess {
+  id        String     @id @default(uuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  moduleId  String
+  module    MasterItem @relation("UserModuleAccessItem", fields: [moduleId], references: [id], onDelete: Cascade)
+  createdAt DateTime   @default(now())
+
+  @@unique([userId, moduleId])
+  @@map("user_module_access")
+}
+
+model RefreshToken {
+  id                  String   @id @default(uuid())
+  userId              String
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash           String   @unique
+  expiresAt           DateTime
+  revoked             Boolean  @default(false)
+  replacedByTokenHash String?
+  ipAddress           String?
+  userAgent           String?
+  createdAt           DateTime @default(now())
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model LoginHistory {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  email     String
+  success   Boolean
+  reason    String?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("login_history")
+}
+
+// ============================================================================
+// MASTERS (generic, admin-extensible without code changes)
+// ============================================================================
+
+model MasterType {
+  id          String  @id @default(uuid())
+  code        String  @unique // PRODUCT, ENVIRONMENT, MODULE, RELEASE_TYPE, PRIORITY, SEVERITY, STATUS, DEPARTMENT, PROJECT, BRANCH, CLIENT, ...
+  name        String
+  description String?
+  isSystem    Boolean @default(false)
+  sortOrder   Int     @default(0)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  items MasterItem[]
+
+  @@map("master_types")
+}
+
+model MasterItem {
+  id           String       @id @default(uuid())
+  masterTypeId String
+  masterType   MasterType   @relation(fields: [masterTypeId], references: [id], onDelete: Cascade)
+  code         String
+  name         String
+  description  String?
+  colorHex     String?
+  icon         String?
+  sortOrder    Int          @default(0)
+  isActive     Boolean      @default(true)
+  isSystem     Boolean      @default(false)
+  parentId     String?
+  parent       MasterItem?  @relation("MasterItemHierarchy", fields: [parentId], references: [id])
+  children     MasterItem[] @relation("MasterItemHierarchy")
+
+  createdById String?
+  updatedById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  userProductAccess     UserProductAccess[]     @relation("UserProductAccessItem")
+  userEnvironmentAccess UserEnvironmentAccess[] @relation("UserEnvironmentAccessItem")
+  userModuleAccess      UserModuleAccess[]      @relation("UserModuleAccessItem")
+  usersInDepartment     User[]                  @relation("UserDepartment")
+
+  versionsAsProduct     Version[] @relation("VersionProduct")
+  versionsAsEnvironment Version[] @relation("VersionEnvironment")
+  versionsAsModule      Version[] @relation("VersionModule")
+  versionsAsReleaseType Version[] @relation("VersionReleaseType")
+  versionsAsPriority    Version[] @relation("VersionPriority")
+  versionsAsSeverity    Version[] @relation("VersionSeverity")
+  versionsAsStatus      Version[] @relation("VersionStatus")
+  versionsAsClient      Version[] @relation("VersionClient")
+
+  changeLogsAsModule ChangeLog[] @relation("ChangeLogModule")
+  changeLogsAsStatus ChangeLog[] @relation("ChangeLogStatus")
+
+  bugFixesAsModule      BugFix[] @relation("BugFixModule")
+  bugFixesAsEnvironment BugFix[] @relation("BugFixEnvironment")
+  bugFixesAsStatus      BugFix[] @relation("BugFixStatus")
+  bugFixesAsSeverity    BugFix[] @relation("BugFixSeverity")
+  bugFixesAsPriority    BugFix[] @relation("BugFixPriority")
+
+  deploymentsAsEnvironment DeploymentHistory[] @relation("DeploymentEnvironment")
+
+  freezeWindowsAsEnvironment ReleaseFreezeWindow[] @relation("FreezeEnvironment")
+  freezeWindowsAsProduct     ReleaseFreezeWindow[] @relation("FreezeProduct")
+
+  @@unique([masterTypeId, code])
+  @@index([masterTypeId])
+  @@index([parentId])
+  @@map("master_items")
+}
+
+// ============================================================================
+// CORE RELEASE DATA
+// ============================================================================
+
+model Version {
+  id                 String  @id @default(uuid())
+  versionNumber      String
+  releaseName        String
+  releaseTitle       String?
+  releaseDescription String?
+
+  releaseDate    DateTime?
+  deploymentDate DateTime?
+
+  releaseTypeId String
+  releaseType   MasterItem  @relation("VersionReleaseType", fields: [releaseTypeId], references: [id])
+  environmentId String
+  environment   MasterItem  @relation("VersionEnvironment", fields: [environmentId], references: [id])
+  productId     String
+  product       MasterItem  @relation("VersionProduct", fields: [productId], references: [id])
+  moduleId      String?
+  module        MasterItem? @relation("VersionModule", fields: [moduleId], references: [id])
+  priorityId    String?
+  priority      MasterItem? @relation("VersionPriority", fields: [priorityId], references: [id])
+  severityId    String?
+  severity      MasterItem? @relation("VersionSeverity", fields: [severityId], references: [id])
+  statusId      String
+  status        MasterItem  @relation("VersionStatus", fields: [statusId], references: [id])
+  clientId      String?
+  client        MasterItem? @relation("VersionClient", fields: [clientId], references: [id])
+
+  developerId  String?
+  developer    User?   @relation("VersionDeveloper", fields: [developerId], references: [id])
+  testerId     String?
+  tester       User?   @relation("VersionTester", fields: [testerId], references: [id])
+  approvedById String?
+  approvedBy   User?   @relation("VersionApprover", fields: [approvedById], references: [id])
+
+  gitCommitId  String?
+  gitBranch    String?
+  buildNumber  String?
+  sprintNumber String?
+  ticketNumber String?
+
+  estimatedHours Decimal? @db.Decimal(8, 2)
+  actualHours    Decimal? @db.Decimal(8, 2)
+
+  deploymentWindowStart DateTime?
+  deploymentWindowEnd   DateTime?
+  downtimeMinutes       Int?
+
+  rollbackAvailable Boolean   @default(false)
+  rollbackVersionId String?
+  rollbackVersion   Version?  @relation("VersionRollback", fields: [rollbackVersionId], references: [id])
+  rolledBackFrom    Version[] @relation("VersionRollback")
+
+  deploymentNotes      String?
+  databaseChanges      String?
+  apiChanges           String?
+  configurationChanges String?
+  breakingChanges      Boolean @default(false)
+  backwardCompatible   Boolean @default(true)
+
+  releaseNotes String?
+  remarks      String?
+
+  createdById String?
+  updatedById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  changeLogs        ChangeLog[]
+  bugFixes          BugFix[]
+  deploymentHistory DeploymentHistory[]
+  bookmarks         Bookmark[]
+
+  @@unique([versionNumber, productId, environmentId])
+  @@index([productId])
+  @@index([environmentId])
+  @@index([releaseTypeId])
+  @@index([statusId])
+  @@index([releaseDate])
+  @@index([rollbackVersionId])
+  @@map("versions")
+}
+
+model ChangeLog {
+  id        String  @id @default(uuid())
+  versionId String
+  version   Version @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  title        String
+  description  String?
+  moduleId     String?
+  module       MasterItem? @relation("ChangeLogModule", fields: [moduleId], references: [id])
+  screenName   String?
+  oldBehaviour String?
+  newBehaviour String?
+
+  reason              String?
+  businessRequirement String?
+  ticketNumber        String?
+
+  developerId String?
+  developer   User?   @relation("ChangeLogDeveloper", fields: [developerId], references: [id])
+  testerId    String?
+  tester      User?   @relation("ChangeLogTester", fields: [testerId], references: [id])
+  reviewerId  String?
+  reviewer    User?   @relation("ChangeLogReviewer", fields: [reviewerId], references: [id])
+
+  date     DateTime?
+  statusId String?
+  status   MasterItem? @relation("ChangeLogStatus", fields: [statusId], references: [id])
+
+  createdById String?
+  updatedById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@index([versionId])
+  @@map("change_logs")
+}
+
+model BugFix {
+  id           String      @id @default(uuid())
+  bugCode      String      @unique
+  ticketNumber String?
+  moduleId     String?
+  module       MasterItem? @relation("BugFixModule", fields: [moduleId], references: [id])
+  issue        String
+  rootCause    String?
+
+  fixedById  String?
+  fixedBy    User?   @relation("BugFixFixedBy", fields: [fixedById], references: [id])
+  testedById String?
+  testedBy   User?   @relation("BugFixTestedBy", fields: [testedById], references: [id])
+
+  environmentId String?
+  environment   MasterItem? @relation("BugFixEnvironment", fields: [environmentId], references: [id])
+
+  statusId String?
+  status   MasterItem? @relation("BugFixStatus", fields: [statusId], references: [id])
+
+  versionId String?
+  version   Version? @relation(fields: [versionId], references: [id])
+
+  severityId String?
+  severity   MasterItem? @relation("BugFixSeverity", fields: [severityId], references: [id])
+  priorityId String?
+  priority   MasterItem? @relation("BugFixPriority", fields: [priorityId], references: [id])
+
+  remarks String?
+
+  createdById String?
+  updatedById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@index([versionId])
+  @@index([statusId])
+  @@map("bug_fixes")
+}
+
+model DeploymentHistory {
+  id            String     @id @default(uuid())
+  versionId     String
+  version       Version    @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  environmentId String
+  environment   MasterItem @relation("DeploymentEnvironment", fields: [environmentId], references: [id])
+
+  deployedAt      DateTime         @default(now())
+  deployedById    String?
+  deployedBy      User?            @relation("DeploymentDeployedBy", fields: [deployedById], references: [id])
+  durationMinutes Int?
+  result          DeploymentResult @default(SUCCESS)
+  rollback        Boolean          @default(false)
+  remarks         String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([versionId])
+  @@index([environmentId])
+  @@map("deployment_history")
+}
+
+model Attachment {
+  id           String               @id @default(uuid())
+  entityType   AttachmentEntityType
+  entityId     String
+  category     AttachmentCategory
+  fileName     String
+  originalName String
+  filePath     String
+  mimeType     String
+  sizeBytes    Int
+  uploadedById String?
+  uploadedBy   User?                @relation("AttachmentUploadedBy", fields: [uploadedById], references: [id])
+
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  @@index([entityType, entityId])
+  @@map("attachments")
+}
+
+// ============================================================================
+// WORKFLOW
+// ============================================================================
+
+model ApprovalRequest {
+  id         String             @id @default(uuid())
+  entityType ApprovalEntityType
+  entityId   String
+  action     String
+  status     ApprovalStatus     @default(PENDING)
+
+  requestedById String
+  requestedBy   User      @relation("ApprovalRequestedBy", fields: [requestedById], references: [id])
+  approverId    String?
+  approver      User?     @relation("ApprovalDecidedBy", fields: [approverId], references: [id])
+  comments      String?
+  requestedAt   DateTime  @default(now())
+  decidedAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([entityType, entityId])
+  @@index([status])
+  @@map("approval_requests")
+}
+
+model Announcement {
+  id        String    @id @default(uuid())
+  title     String
+  message   String
+  isActive  Boolean   @default(true)
+  startDate DateTime?
+  endDate   DateTime?
+  priority  String    @default("INFO") // INFO | WARNING | CRITICAL
+
+  createdById String?
+  updatedById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@map("announcements")
+}
+
+model Bookmark {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  versionId String
+  version   Version  @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, versionId])
+  @@map("bookmarks")
+}
+
+model ReleaseFreezeWindow {
+  id            String      @id @default(uuid())
+  title         String
+  description   String?
+  startDate     DateTime
+  endDate       DateTime
+  environmentId String?
+  environment   MasterItem? @relation("FreezeEnvironment", fields: [environmentId], references: [id])
+  productId     String?
+  product       MasterItem? @relation("FreezeProduct", fields: [productId], references: [id])
+  isActive      Boolean     @default(true)
+
+  createdById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@map("release_freeze_windows")
+}
+
+// ============================================================================
+// OPERATIONS (audit, notifications, settings, backups)
+// ============================================================================
+
+model AuditLog {
+  id          String      @id @default(uuid())
+  actorId     String?
+  actor       User?       @relation("AuditActor", fields: [actorId], references: [id])
+  action      AuditAction
+  entityType  String?
+  entityId    String?
+  oldValue    Json?
+  newValue    Json?
+  description String?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime    @default(now())
+
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Notification {
+  id         String           @id @default(uuid())
+  userId     String
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       NotificationType
+  title      String
+  message    String
+  entityType String?
+  entityId   String?
+  isRead     Boolean          @default(false)
+  readAt     DateTime?
+  createdAt  DateTime         @default(now())
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+model EmailLog {
+  id        String   @id @default(uuid())
+  toEmail   String
+  subject   String
+  template  String?
+  status    String // SENT | FAILED
+  error     String?
+  createdAt DateTime @default(now())
+
+  @@map("email_logs")
+}
+
+model SystemSettings {
+  id             String  @id @default("singleton")
+  companyName    String  @default("Our Company")
+  companyLogoUrl String?
+  companyAddress String?
+  companyPhone   String?
+  companyEmail   String?
+
+  smtpHost        String?
+  smtpPort        Int?
+  smtpSecure      Boolean @default(false)
+  smtpUser        String?
+  smtpPasswordEnc String?
+  smtpFrom        String?
+
+  passwordMinLength        Int     @default(8)
+  passwordRequireUppercase Boolean @default(true)
+  passwordRequireNumber    Boolean @default(true)
+  passwordRequireSymbol    Boolean @default(true)
+  passwordExpiryDays       Int?
+
+  sessionTimeoutMinutes Int @default(30)
+  maxUploadSizeMb       Int @default(25)
+
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
+model BackupHistory {
+  id          String    @id @default(uuid())
+  fileName    String
+  filePath    String
+  sizeBytes   Int?
+  status      String // SUCCESS | FAILED
+  triggeredBy String? // "SCHEDULED" or a userId
+  error       String?
+  startedAt   DateTime  @default(now())
+  finishedAt  DateTime?
+
+  @@map("backup_history")
+}

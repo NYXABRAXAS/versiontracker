@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Environment
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Prisma
+apps/api/prisma/migrations/dev.db
+
+# Uploads / backups / logs (runtime data, never committed)
+apps/api/uploads/
+apps/api/backups/
+apps/api/logs/
+*.log
+npm-debug.log*
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage/
+
+# Misc
+*.tsbuildinfo
+.eslintcache
