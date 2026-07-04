@@ -166,12 +166,19 @@ export function VersionForm({ initial }: { initial?: Version }) {
   const onSubmit = async (values: FormValues) => {
     setSubmitting(true);
     try {
-      const payload = {
+      // Optional UUID-backed selects default to "" (so the Select stays controlled from the
+      // start) but the API's @IsOptional() @IsUUID() DTOs reject "" outright - only a missing
+      // key counts as "not provided", so empty strings must become undefined before sending.
+      const OPTIONAL_ID_FIELDS = ["moduleId", "priorityId", "severityId", "clientId", "developerId", "testerId", "approvedById"] as const;
+      const payload: Record<string, unknown> = {
         ...values,
         estimatedHours: values.estimatedHours ? Number(values.estimatedHours) : undefined,
         actualHours: values.actualHours ? Number(values.actualHours) : undefined,
         downtimeMinutes: values.downtimeMinutes ? Number(values.downtimeMinutes) : undefined,
       };
+      for (const field of OPTIONAL_ID_FIELDS) {
+        if (payload[field] === "") payload[field] = undefined;
+      }
       if (initial) {
         await versionsApi.update(initial.id, payload);
         toast.success("Version updated.");
