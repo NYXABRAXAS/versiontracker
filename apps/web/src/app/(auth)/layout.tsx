@@ -1,7 +1,21 @@
+"use client";
+
+import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  React.useEffect(() => {
+    if (!loading && user && !user.mustChangePassword) {
+      router.push("/dashboard");
+    }
+  }, [loading, user, router]);
+
   return (
     <div className="flex min-h-screen w-full flex-col items-center justify-center gap-6 bg-muted/40 p-6">
       <Link href="/dashboard" className="flex items-center gap-2 text-lg font-semibold">
