@@ -34,7 +34,11 @@ export class AuthController {
     const user = await this.authService.validateCredentials(dto.email, dto.password, meta);
     const tokens = await this.authService.issueTokens(user as any, { ...meta, rememberMe: dto.rememberMe });
     setAuthCookies(res, tokens, this.configService.get('cookie', { infer: true }));
-    return this.authService.getProfile(user.id);
+    // Cross-site deployments (API and web on different sites) can't rely on the web app reading
+    // the API's csrf_token cookie via JS - it's never visible outside the API's own origin. So the
+    // token is also handed back in the body; the client caches it in memory and echoes it as the
+    // x-csrf-token header on state-changing requests.
+    return { ...(await this.authService.getProfile(user.id)), csrfToken: tokens.csrfToken };
   }
 
   @Public()
@@ -47,7 +51,7 @@ export class AuthController {
     const meta = { ipAddress: req.ip, userAgent: req.headers['user-agent'] };
     const tokens = await this.authService.rotateRefreshToken(user, tokenRecord.id, tokenRecord.tokenHash, meta);
     setAuthCookies(res, tokens, this.configService.get('cookie', { infer: true }));
-    return this.authService.getProfile(user.id);
+    return { ...(await this.authService.getProfile(user.id)), csrfToken: tokens.csrfToken };
   }
 
   @Post('logout')
@@ -87,7 +91,7 @@ export class AuthController {
   }
 
   @Get('me')
-  async me(@CurrentUser() user: AuthenticatedUser) {
-    return this.authService.getProfile(user.id);
+  async me(@CurrentUser() user: AuthenticatedUser, @Req() req: Request) {
+    return { ...(await this.authService.getProfile(user.id)), csrfToken: req.cookies?.csrf_token };
   }
 }

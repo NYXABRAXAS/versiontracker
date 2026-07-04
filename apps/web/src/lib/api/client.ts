@@ -16,6 +16,12 @@ function readCookie(name: string): string | undefined {
   return match ? decodeURIComponent(match[1]) : undefined;
 }
 
+// The csrf_token cookie lives on the API's own origin - when the web app is on a different site
+// (e.g. separate onrender.com subdomains), its JS can never read that cookie via document.cookie.
+// So the API also echoes the token in the JSON body of /auth/login, /auth/refresh and /auth/me;
+// we cache it here and send it back as the x-csrf-token header on state-changing requests.
+let csrfTokenMemory: string | undefined;
+
 let refreshPromise: Promise<boolean> | null = null;
 
 async function tryRefresh(): Promise<boolean> {
@@ -43,7 +49,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const finalHeaders: Record<string, string> = { ...(headers as Record<string, string>) };
   if (!isForm && body !== undefined) finalHeaders["Content-Type"] = "application/json";
   if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
-    const csrf = readCookie("csrf_token");
+    const csrf = csrfTokenMemory || readCookie("csrf_token");
     if (csrf) finalHeaders["x-csrf-token"] = csrf;
   }
 
@@ -76,7 +82,13 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   if (res.status === 204) return undefined as T;
   const contentType = res.headers.get("content-type") || "";
-  if (contentType.includes("application/json")) return (await res.json()) as T;
+  if (contentType.includes("application/json")) {
+    const json = await res.json();
+    if (json && typeof json === "object" && typeof (json as { csrfToken?: unknown }).csrfToken === "string") {
+      csrfTokenMemory = (json as { csrfToken: string }).csrfToken;
+    }
+    return json as T;
+  }
   return (await res.blob()) as unknown as T;
 }
 
