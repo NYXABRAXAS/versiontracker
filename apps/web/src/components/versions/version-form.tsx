@@ -66,9 +66,60 @@ function toDateInput(value?: string | null): string {
   return value.slice(0, 10);
 }
 
+const TAB_ORDER = ["basic", "classification", "people", "git", "deployment", "changes"] as const;
+
+const FIELD_TAB: Record<string, (typeof TAB_ORDER)[number]> = {
+  versionNumber: "basic",
+  releaseName: "basic",
+  releaseTitle: "basic",
+  releaseDescription: "basic",
+  releaseDate: "basic",
+  deploymentDate: "basic",
+  productId: "classification",
+  environmentId: "classification",
+  releaseTypeId: "classification",
+  statusId: "classification",
+  moduleId: "classification",
+  clientId: "classification",
+  priorityId: "classification",
+  severityId: "classification",
+  developerId: "people",
+  testerId: "people",
+  approvedById: "people",
+  sprintNumber: "people",
+  ticketNumber: "people",
+  estimatedHours: "people",
+  actualHours: "people",
+  gitCommitId: "git",
+  gitBranch: "git",
+  buildNumber: "git",
+  deploymentWindowStart: "deployment",
+  deploymentWindowEnd: "deployment",
+  downtimeMinutes: "deployment",
+  rollbackAvailable: "deployment",
+  deploymentNotes: "deployment",
+  databaseChanges: "changes",
+  apiChanges: "changes",
+  configurationChanges: "changes",
+  breakingChanges: "changes",
+  backwardCompatible: "changes",
+  releaseNotes: "changes",
+  remarks: "changes",
+};
+
+const TAB_LABEL: Record<(typeof TAB_ORDER)[number], string> = {
+  basic: "Basic Info",
+  classification: "Classification",
+  people: "People",
+  git: "Git & Build",
+  deployment: "Deployment",
+  changes: "Changes & Notes",
+};
+
 export function VersionForm({ initial }: { initial?: Version }) {
   const router = useRouter();
   const [submitting, setSubmitting] = React.useState(false);
+  const [activeTab, setActiveTab] = React.useState<(typeof TAB_ORDER)[number]>("basic");
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -87,8 +138,30 @@ export function VersionForm({ initial }: { initial?: Version }) {
           testerId: initial.testerId ?? undefined,
           approvedById: initial.approvedById ?? undefined,
         } as unknown as FormValues)
-      : { rollbackAvailable: false, breakingChanges: false, backwardCompatible: true },
+      : {
+          productId: "",
+          environmentId: "",
+          releaseTypeId: "",
+          statusId: "",
+          moduleId: "",
+          clientId: "",
+          priorityId: "",
+          severityId: "",
+          developerId: "",
+          testerId: "",
+          approvedById: "",
+          rollbackAvailable: false,
+          breakingChanges: false,
+          backwardCompatible: true,
+        },
   });
+
+  const onInvalid = (errors: typeof form.formState.errors) => {
+    const firstField = Object.keys(errors)[0];
+    const tab = firstField ? FIELD_TAB[firstField] : undefined;
+    if (tab && tab !== activeTab) setActiveTab(tab);
+    toast.error(tab ? `Check the "${TAB_LABEL[tab]}" tab - some required fields are missing.` : "Please fix the highlighted fields.");
+  };
 
   const onSubmit = async (values: FormValues) => {
     setSubmitting(true);
@@ -117,17 +190,18 @@ export function VersionForm({ initial }: { initial?: Version }) {
   };
 
   const err = form.formState.errors;
+  const tabHasError = (tab: (typeof TAB_ORDER)[number]) => Object.keys(err).some((field) => FIELD_TAB[field] === tab);
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4">
-      <Tabs defaultValue="basic">
+    <form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="flex flex-col gap-4">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as (typeof TAB_ORDER)[number])}>
         <TabsList className="flex-wrap h-auto">
-          <TabsTrigger value="basic">Basic Info</TabsTrigger>
-          <TabsTrigger value="classification">Classification</TabsTrigger>
-          <TabsTrigger value="people">People</TabsTrigger>
-          <TabsTrigger value="git">Git & Build</TabsTrigger>
-          <TabsTrigger value="deployment">Deployment</TabsTrigger>
-          <TabsTrigger value="changes">Changes & Notes</TabsTrigger>
+          {TAB_ORDER.map((tab) => (
+            <TabsTrigger key={tab} value={tab} className={tabHasError(tab) ? "text-destructive" : undefined}>
+              {TAB_LABEL[tab]}
+              {tabHasError(tab) && " *"}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
         <TabsContent value="basic">
