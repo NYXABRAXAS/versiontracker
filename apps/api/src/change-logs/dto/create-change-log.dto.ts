@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsOptional, IsString, IsUUID } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsDate, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class CreateChangeLogDto {
   @ApiProperty()
@@ -67,8 +68,9 @@ export class CreateChangeLogDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsDateString()
-  date?: string;
+  @Type(() => Date)
+  @IsDate()
+  date?: Date;
 
   @ApiPropertyOptional()
   @IsOptional()

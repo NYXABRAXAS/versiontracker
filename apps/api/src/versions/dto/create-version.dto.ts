@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsBoolean, IsDateString, IsInt, IsNumber, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsBoolean, IsDate, IsInt, IsNumber, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class CreateVersionDto {
   @ApiProperty()
@@ -23,13 +23,15 @@ export class CreateVersionDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsDateString()
-  releaseDate?: string;
+  @Type(() => Date)
+  @IsDate()
+  releaseDate?: Date;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsDateString()
-  deploymentDate?: string;
+  @Type(() => Date)
+  @IsDate()
+  deploymentDate?: Date;
 
   @ApiProperty()
   @IsUUID()
@@ -121,13 +123,15 @@ export class CreateVersionDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsDateString()
-  deploymentWindowStart?: string;
+  @Type(() => Date)
+  @IsDate()
+  deploymentWindowStart?: Date;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsDateString()
-  deploymentWindowEnd?: string;
+  @Type(() => Date)
+  @IsDate()
+  deploymentWindowEnd?: Date;
 
   @ApiPropertyOptional()
   @IsOptional()

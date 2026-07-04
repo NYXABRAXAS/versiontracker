@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsOptional, IsString, IsUUID } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsDate, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class CreateFreezeWindowDto {
   @ApiProperty()
@@ -12,12 +13,14 @@ export class CreateFreezeWindowDto {
   description?: string;
 
   @ApiProperty()
-  @IsDateString()
-  startDate!: string;
+  @Type(() => Date)
+  @IsDate()
+  startDate!: Date;
 
   @ApiProperty()
-  @IsDateString()
-  endDate!: string;
+  @Type(() => Date)
+  @IsDate()
+  endDate!: Date;
 
   @ApiPropertyOptional()
   @IsOptional()

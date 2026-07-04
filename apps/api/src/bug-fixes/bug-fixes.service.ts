@@ -63,8 +63,12 @@ export class BugFixesService {
   }
 
   private async nextBugCode(): Promise<string> {
-    const count = await this.prisma.bugFix.count();
-    return `BUG-${String(1001 + count).padStart(4, '0')}`;
+    // Derived from the highest existing code, not a row count - counting rows collides with the
+    // seed data's own BUG-1000/1002/1004... numbering (which skips odd numbers and soft-deleted
+    // rows would also throw a count-based scheme off over time).
+    const last = await this.prisma.bugFix.findFirst({ orderBy: { bugCode: 'desc' }, select: { bugCode: true } });
+    const lastNum = last ? parseInt(last.bugCode.replace('BUG-', ''), 10) : 1000;
+    return `BUG-${String(lastNum + 1).padStart(4, '0')}`;
   }
 
   async create(dto: CreateBugFixDto, actorId: string) {
