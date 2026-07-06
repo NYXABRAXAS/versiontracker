@@ -60,7 +60,7 @@ export class UsersController {
 
   @RequirePermission('USERS', 'edit')
   @Post(':id/reset-password')
-  resetPassword(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.usersService.adminResetPassword(id, user.id);
+  resetPassword(@Param('id') id: string, @Body('password') password: string | undefined, @CurrentUser() user: AuthenticatedUser) {
+    return this.usersService.adminResetPassword(id, user.id, password);
   }
 }

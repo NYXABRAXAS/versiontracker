@@ -63,16 +63,25 @@ export default function UsersAdminPage() {
   };
 
   const onResetPassword = async (u: User) => {
-    if (!confirm(`Reset password for ${fullName(u)}? A temporary password will be emailed to them.`)) return;
-    const res = await usersApi.resetPassword(u.id);
-    if (res.tempPassword) {
-      // No SMTP configured - this is the only place this password will ever be visible.
-      navigator.clipboard.writeText(res.tempPassword).catch(() => {});
-      toast.success(`No email configured - temporary password for ${fullName(u)}: ${res.tempPassword} (copied to clipboard)`, {
-        duration: 30000,
-      });
-    } else {
-      toast.success("Password reset. A temporary password has been emailed.");
+    const custom = prompt(
+      `Reset password for ${fullName(u)}.\n\nType a new password to set it directly (min 8 chars, uppercase + number + symbol), or leave blank to auto-generate and email one.`,
+    );
+    if (custom === null) return; // cancelled
+    try {
+      const res = await usersApi.resetPassword(u.id, custom || undefined);
+      if (res.tempPassword) {
+        // No SMTP configured - this is the only place this password will ever be visible.
+        navigator.clipboard.writeText(res.tempPassword).catch(() => {});
+        toast.success(`No email configured - temporary password for ${fullName(u)}: ${res.tempPassword} (copied to clipboard)`, {
+          duration: 30000,
+        });
+      } else if (custom) {
+        toast.success(`Password reset to the value you set for ${fullName(u)}.`);
+      } else {
+        toast.success("Password reset. A temporary password has been emailed.");
+      }
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Unable to reset password.");
     }
   };
 

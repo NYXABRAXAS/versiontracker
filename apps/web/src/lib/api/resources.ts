@@ -48,7 +48,8 @@ export const usersApi = {
   enable: (id: string) => api.patch<User>(`/users/${id}/enable`),
   disable: (id: string) => api.patch<User>(`/users/${id}/disable`),
   remove: (id: string) => api.delete(`/users/${id}`),
-  resetPassword: (id: string) => api.post<{ success: boolean; tempPassword?: string }>(`/users/${id}/reset-password`),
+  resetPassword: (id: string, password?: string) =>
+    api.post<{ success: boolean; tempPassword?: string }>(`/users/${id}/reset-password`, password ? { password } : undefined),
 };
 
 export const rolesApi = {

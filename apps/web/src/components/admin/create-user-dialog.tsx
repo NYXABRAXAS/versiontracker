@@ -23,6 +23,7 @@ interface FormValues {
   employeeCode: string;
   roleId: string;
   departmentId?: string;
+  password?: string;
 }
 
 export function CreateUserDialog({
@@ -48,12 +49,16 @@ export function CreateUserDialog({
   const onSubmit = async (values: FormValues) => {
     setSubmitting(true);
     try {
-      const created = await usersApi.create(values);
+      const payload = { ...values, password: values.password || undefined };
+      const created = await usersApi.create(payload);
       reset();
       if (created.tempPassword) {
         // No SMTP configured (or delivery failed) - this is the only place this password will
         // ever be visible, so keep the dialog open and show it instead of silently closing.
         setRevealPassword({ email: created.email, tempPassword: created.tempPassword });
+      } else if (values.password) {
+        toast.success("User created with the password you set.");
+        onOpenChange(false);
       } else {
         toast.success("User created. A temporary password has been emailed to them.");
         onOpenChange(false);
@@ -153,6 +158,14 @@ export function CreateUserDialog({
           <div className="flex flex-col gap-1.5">
             <Label>Department</Label>
             <Controller control={control} name="departmentId" render={({ field }) => <MasterSelect typeCode={MASTER_TYPE_CODES.DEPARTMENT} value={field.value} onChange={field.onChange} allowClear />} />
+          </div>
+          <div className="flex flex-col gap-1.5 sm:col-span-2">
+            <Label>Initial Password</Label>
+            <Input type="text" placeholder="Leave blank to auto-generate" {...register("password")} />
+            <p className="text-xs text-muted-foreground">
+              Set this yourself so you know it up front, or leave blank to generate a random one. Either way the user must change it
+              on first login. At least 8 characters, with an uppercase letter, a number, and a symbol.
+            </p>
           </div>
           <DialogFooter className="sm:col-span-2">
             <Button type="submit" disabled={submitting}>

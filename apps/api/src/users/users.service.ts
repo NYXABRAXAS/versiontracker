@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { MailService } from '../mail/mail.service';
 import { paginate } from '../common/dto/pagination-query.dto';
+import { validatePassword } from '../common/utils/password-policy';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserListQueryDto } from './dto/user-list-query.dto';
@@ -73,11 +74,27 @@ export class UsersService {
     return this.sanitize(user);
   }
 
+  private async assertPasswordPolicy(password: string) {
+    const settings = await this.prisma.systemSettings.findUnique({ where: { id: 'singleton' } });
+    const errors = validatePassword(password, {
+      passwordMinLength: settings?.passwordMinLength ?? 8,
+      passwordRequireUppercase: settings?.passwordRequireUppercase ?? true,
+      passwordRequireNumber: settings?.passwordRequireNumber ?? true,
+      passwordRequireSymbol: settings?.passwordRequireSymbol ?? true,
+    });
+    if (errors.length) throw new BadRequestException(errors.join(' '));
+  }
+
   async create(dto: CreateUserDto, actorId: string) {
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email.toLowerCase() } });
     if (existing) throw new ConflictException('A user with this email already exists.');
 
-    const tempPassword = generateTempPassword();
+    // An admin can set the initial password directly (so they already know it and can hand it
+    // off themselves) instead of relying on a randomly generated one that only ever exists in an
+    // email - useful when no SMTP is configured.
+    const adminSetPassword = Boolean(dto.password);
+    if (dto.password) await this.assertPasswordPolicy(dto.password);
+    const tempPassword = dto.password || generateTempPassword();
     const passwordHash = await bcrypt.hash(tempPassword, 12);
 
     const user = await this.prisma.user.create({
@@ -102,7 +119,9 @@ export class UsersService {
       include: this.listInclude,
     });
 
-    const emailSent = await this.mailService.sendUserCreatedEmail(user.email, user.firstName, tempPassword);
+    // If the admin chose their own password, they already know it and will hand it off
+    // themselves - no need to also email it out.
+    const emailSent = adminSetPassword ? true : await this.mailService.sendUserCreatedEmail(user.email, user.firstName, tempPassword);
     await this.auditService.log({
       actorId,
       action: AuditAction.CREATE,
@@ -186,18 +205,22 @@ export class UsersService {
     return { success: true };
   }
 
-  async adminResetPassword(id: string, actorId: string) {
+  async adminResetPassword(id: string, actorId: string, password?: string) {
     const user = await this.prisma.user.findFirstOrThrow({ where: { id, deletedAt: null } });
-    const tempPassword = generateTempPassword();
+    const adminSetPassword = Boolean(password);
+    if (password) await this.assertPasswordPolicy(password);
+    const tempPassword = password || generateTempPassword();
     const passwordHash = await bcrypt.hash(tempPassword, 12);
     await this.prisma.user.update({ where: { id }, data: { passwordHash, mustChangePassword: true } });
     await this.prisma.refreshToken.updateMany({ where: { userId: id }, data: { revoked: true } });
-    const emailSent = await this.mailService.sendMail(
-      user.email,
-      'Your LOS Version Portal password has been reset',
-      `<p>Hi ${user.firstName},</p><p>Your password was reset by an administrator. Temporary password: <b>${tempPassword}</b></p><p>You will be asked to set a new password at next login.</p>`,
-      'admin-password-reset',
-    );
+    const emailSent = adminSetPassword
+      ? true
+      : await this.mailService.sendMail(
+          user.email,
+          'Your LOS Version Portal password has been reset',
+          `<p>Hi ${user.firstName},</p><p>Your password was reset by an administrator. Temporary password: <b>${tempPassword}</b></p><p>You will be asked to set a new password at next login.</p>`,
+          'admin-password-reset',
+        );
     await this.auditService.log({ actorId, action: AuditAction.PASSWORD_RESET, entityType: 'USER', entityId: id, description: 'Reset by admin' });
     return { success: true, tempPassword: emailSent ? undefined : tempPassword };
   }

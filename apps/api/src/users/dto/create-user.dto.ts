@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsBoolean, IsEmail, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsArray, IsBoolean, IsEmail, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
 
 export class CreateUserDto {
   @ApiProperty()
@@ -27,6 +27,12 @@ export class CreateUserDto {
   @ApiProperty()
   @IsUUID()
   roleId!: string;
+
+  @ApiPropertyOptional({ description: 'Set an initial password directly instead of generating a random one. Leave blank to auto-generate.' })
+  @IsOptional()
+  @IsString()
+  @MinLength(8)
+  password?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
