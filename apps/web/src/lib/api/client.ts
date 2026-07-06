@@ -27,7 +27,21 @@ let refreshPromise: Promise<boolean> | null = null;
 async function tryRefresh(): Promise<boolean> {
   if (!refreshPromise) {
     refreshPromise = fetch(`${API_BASE}/auth/refresh`, { method: "POST", credentials: "include" })
-      .then((res) => res.ok)
+      .then(async (res) => {
+        // /auth/refresh rotates the csrf_token cookie server-side on every call - this must stay
+        // in sync with the in-memory copy or every state-changing request after a silent refresh
+        // (e.g. once the 15-minute access token expires mid-session) sends a stale csrf header
+        // and gets rejected with "Invalid or missing CSRF token".
+        if (res.ok) {
+          try {
+            const json = await res.json();
+            if (json && typeof json === "object" && typeof json.csrfToken === "string") csrfTokenMemory = json.csrfToken;
+          } catch {
+            // no body / not JSON - nothing to update
+          }
+        }
+        return res.ok;
+      })
       .catch(() => false)
       .finally(() => {
         refreshPromise = null;
