@@ -64,8 +64,16 @@ export default function UsersAdminPage() {
 
   const onResetPassword = async (u: User) => {
     if (!confirm(`Reset password for ${fullName(u)}? A temporary password will be emailed to them.`)) return;
-    await usersApi.resetPassword(u.id);
-    toast.success("Password reset. A temporary password has been emailed.");
+    const res = await usersApi.resetPassword(u.id);
+    if (res.tempPassword) {
+      // No SMTP configured - this is the only place this password will ever be visible.
+      navigator.clipboard.writeText(res.tempPassword).catch(() => {});
+      toast.success(`No email configured - temporary password for ${fullName(u)}: ${res.tempPassword} (copied to clipboard)`, {
+        duration: 30000,
+      });
+    } else {
+      toast.success("Password reset. A temporary password has been emailed.");
+    }
   };
 
   const columns: ColumnDef<User>[] = [

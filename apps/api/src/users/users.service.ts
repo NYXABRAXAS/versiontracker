@@ -102,7 +102,7 @@ export class UsersService {
       include: this.listInclude,
     });
 
-    await this.mailService.sendUserCreatedEmail(user.email, user.firstName, tempPassword);
+    const emailSent = await this.mailService.sendUserCreatedEmail(user.email, user.firstName, tempPassword);
     await this.auditService.log({
       actorId,
       action: AuditAction.CREATE,
@@ -111,7 +111,11 @@ export class UsersService {
       newValue: user,
     });
 
-    return this.sanitize(user);
+    // The temp password only ever exists in this one response otherwise - if SMTP isn't
+    // configured (or delivery fails), the account would be created with no way for the admin to
+    // ever hand the user a working password. Only include it here as a fallback when the email
+    // genuinely didn't go out, never when delivery succeeded.
+    return { ...this.sanitize(user), tempPassword: emailSent ? undefined : tempPassword };
   }
 
   async update(id: string, dto: UpdateUserDto, actorId: string) {
@@ -188,13 +192,13 @@ export class UsersService {
     const passwordHash = await bcrypt.hash(tempPassword, 12);
     await this.prisma.user.update({ where: { id }, data: { passwordHash, mustChangePassword: true } });
     await this.prisma.refreshToken.updateMany({ where: { userId: id }, data: { revoked: true } });
-    await this.mailService.sendMail(
+    const emailSent = await this.mailService.sendMail(
       user.email,
       'Your LOS Version Portal password has been reset',
       `<p>Hi ${user.firstName},</p><p>Your password was reset by an administrator. Temporary password: <b>${tempPassword}</b></p><p>You will be asked to set a new password at next login.</p>`,
       'admin-password-reset',
     );
     await this.auditService.log({ actorId, action: AuditAction.PASSWORD_RESET, entityType: 'USER', entityId: id, description: 'Reset by admin' });
-    return { success: true };
+    return { success: true, tempPassword: emailSent ? undefined : tempPassword };
   }
 }

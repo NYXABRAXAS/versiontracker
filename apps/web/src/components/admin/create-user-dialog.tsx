@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useForm, Controller } from "react-hook-form";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,15 +37,27 @@ export function CreateUserDialog({
   onCreated: () => void;
 }) {
   const [submitting, setSubmitting] = React.useState(false);
+  const [revealPassword, setRevealPassword] = React.useState<{ email: string; tempPassword: string } | null>(null);
   const { register, handleSubmit, control, reset } = useForm<FormValues>();
+
+  const close = (v: boolean) => {
+    if (!v) setRevealPassword(null);
+    onOpenChange(v);
+  };
 
   const onSubmit = async (values: FormValues) => {
     setSubmitting(true);
     try {
-      await usersApi.create(values);
-      toast.success("User created. A temporary password has been emailed to them.");
+      const created = await usersApi.create(values);
       reset();
-      onOpenChange(false);
+      if (created.tempPassword) {
+        // No SMTP configured (or delivery failed) - this is the only place this password will
+        // ever be visible, so keep the dialog open and show it instead of silently closing.
+        setRevealPassword({ email: created.email, tempPassword: created.tempPassword });
+      } else {
+        toast.success("User created. A temporary password has been emailed to them.");
+        onOpenChange(false);
+      }
       onCreated();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Unable to create user.");
@@ -54,8 +66,43 @@ export function CreateUserDialog({
     }
   };
 
+  if (revealPassword) {
+    return (
+      <Dialog open={open} onOpenChange={close}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>User created - email could not be sent</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            No outgoing email is configured for this portal, so <strong>{revealPassword.email}</strong> was not notified. Share this
+            temporary password with them directly - it will not be shown again.
+          </p>
+          <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 font-mono text-sm">
+            <span className="flex-1 select-all">{revealPassword.tempPassword}</span>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              onClick={() => {
+                navigator.clipboard.writeText(revealPassword.tempPassword);
+                toast.success("Copied to clipboard.");
+              }}
+            >
+              <Copy className="size-4" />
+            </Button>
+          </div>
+          <DialogFooter>
+            <Button type="button" onClick={() => close(false)}>
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={close}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Create User</DialogTitle>

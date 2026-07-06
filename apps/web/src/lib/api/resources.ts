@@ -43,12 +43,12 @@ export const mastersApi = {
 export const usersApi = {
   list: (params: Record<string, string | number | undefined> = {}) => api.get<Paginated<User>>(`/users${qs(params)}`),
   get: (id: string) => api.get<User>(`/users/${id}`),
-  create: (data: object) => api.post<User>("/users", data),
+  create: (data: object) => api.post<User & { tempPassword?: string }>("/users", data),
   update: (id: string, data: object) => api.patch<User>(`/users/${id}`, data),
   enable: (id: string) => api.patch<User>(`/users/${id}/enable`),
   disable: (id: string) => api.patch<User>(`/users/${id}/disable`),
   remove: (id: string) => api.delete(`/users/${id}`),
-  resetPassword: (id: string) => api.post(`/users/${id}/reset-password`),
+  resetPassword: (id: string) => api.post<{ success: boolean; tempPassword?: string }>(`/users/${id}/reset-password`),
 };
 
 export const rolesApi = {
