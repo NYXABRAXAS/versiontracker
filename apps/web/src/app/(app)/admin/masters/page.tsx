@@ -17,6 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { mastersApi } from "@/lib/api/resources";
 import { ApiError } from "@/lib/api/client";
+import { invalidateMasterItems } from "@/lib/hooks/use-master-items";
 import type { MasterItem, MasterType } from "@/lib/api/types";
 
 export default function MastersAdminPage() {
@@ -50,7 +51,11 @@ export default function MastersAdminPage() {
       .itemsForType(activeType)
       .then(setItems)
       .finally(() => setItemsLoading(false));
-  }, [activeType]);
+    // Keep every MasterSelect dropdown elsewhere in the app (Versions, Change Logs, etc.) in sync
+    // with this change immediately, instead of only fixing this page's own list.
+    const code = types.find((t) => t.id === activeType)?.code;
+    if (code) invalidateMasterItems(code);
+  }, [activeType, types]);
 
   React.useEffect(() => loadItems(), [loadItems]);
 

@@ -14,6 +14,17 @@ async function fetchAndCache(code: string): Promise<MasterItem[]> {
   return items;
 }
 
+/**
+ * Master items are cached per type code across the whole app so every MasterSelect dropdown
+ * doesn't refetch on every mount. Nothing invalidated that cache when Admin > Masters
+ * created/edited/deleted an item elsewhere, so any already-mounted (or previously visited)
+ * dropdown for that type kept showing the stale list until a full page reload. Call this after
+ * any masters mutation to push the fresh list out to every subscriber immediately.
+ */
+export function invalidateMasterItems(code: string): void {
+  fetchAndCache(code).catch(() => undefined);
+}
+
 export function useMasterItems(code: string): { items: MasterItem[]; loading: boolean; refresh: () => void } {
   const [items, setItems] = React.useState<MasterItem[]>(cache.get(code) ?? []);
   const [loading, setLoading] = React.useState(!cache.has(code));
